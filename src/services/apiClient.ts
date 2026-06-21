@@ -21,8 +21,14 @@ import {
 } from "./api-types.fe";
 import { AuthUser } from "../types";
 
-const BASE = "/api/v1";
+const DEFAULT_API_BASE = "http://localhost:8080/api/v1";
+const BASE = (import.meta.env.VITE_API_BASE_URL || DEFAULT_API_BASE).replace(/\/$/, "");
 const TOKEN_KEY = "eduattend_token";
+
+/** Origin BE (health check: GET /health — ngoài /api/v1). */
+export function getApiOrigin(): string {
+  return BASE.replace(/\/api\/v1$/i, "");
+}
 
 export class ApiError extends Error {
   status: number;
@@ -71,6 +77,25 @@ async function api<T>(path: string, options: RequestInit = {}): Promise<T> {
   }
 
   return data as T;
+}
+
+export interface HealthResponse {
+  ok: boolean;
+  service: string;
+  database: string;
+}
+
+/** GET /health — không cần token (kiểm tra BE + DB). */
+export async function checkApiHealth(): Promise<HealthResponse> {
+  const response = await fetch(`${getApiOrigin()}/health`);
+  const data = (await response.json().catch(() => ({}))) as HealthResponse;
+  if (!response.ok) {
+    throw new ApiError(response.status, {
+      message: "Health check failed",
+      code: "healthCheckFailed"
+    });
+  }
+  return data;
 }
 
 export const authApi = {
